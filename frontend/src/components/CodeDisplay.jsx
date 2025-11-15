@@ -4,20 +4,13 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 function CodeDisplay({ code, language, onDownload, onEvaluate, onShowAST, fileExtension }) {
   const [copied, setCopied] = useState(false)
-  const isPython = language === 'python' || language === 'Python'
+  const supportedASTLanguages = ['python', 'java', 'javascript', 'c', 'cpp', 'c_sharp']
+  const isASTSupported = supportedASTLanguages.includes(language?.toLowerCase())
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleShowAST = () => {
-    if (!isPython) {
-      alert('AST visualization is currently supported for Python code only.')
-      return
-    }
-    onShowAST()
   }
 
   return (
@@ -32,10 +25,11 @@ function CodeDisplay({ code, language, onDownload, onEvaluate, onShowAST, fileEx
             ⬇️ Download
           </button>
           <button 
-            onClick={handleShowAST} 
+            onClick={onShowAST} 
             className="code-action-btn"
-            title={isPython ? 'Show Abstract Syntax Tree' : 'AST only available for Python'}
-            style={!isPython ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            title={isASTSupported ? 'Show Abstract Syntax Tree' : 'AST available for: Python, Java, JavaScript, C, C++'}
+            style={!isASTSupported ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            disabled={!isASTSupported}
           >
             🌳 Show AST
           </button>

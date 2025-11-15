@@ -1200,8 +1200,8 @@
 
 .ast-viewer-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 20px 24px;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -1210,6 +1210,36 @@
   margin: 0;
   color: #111827;
   font-size: 1.25rem;
+  flex: 1;
+}
+
+.ast-method-badge {
+  background: #3b82f6;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ast-lang-badge {
+  background: #8b5cf6;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ast-info-bar {
+  display: flex;
+  gap: 20px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
 .ast-viewer-content {
@@ -1239,6 +1269,19 @@
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.75rem;
+}
+
+.ast-position {
+  margin-left: 8px;
+  color: #6b7280;
+  font-size: 0.7rem;
+  font-weight: normal;
+}
+
+.ast-text-value {
+  color: #dc2626;
+  font-style: italic;
+  margin-left: 4px;
 }
 
 .ast-fields {
@@ -1300,6 +1343,19 @@
 
 .dark-mode .ast-viewer-header h3 {
   color: #e5e7eb;
+}
+
+.dark-mode .ast-info-bar {
+  background: #1a1a1a;
+  color: #d1d5db;
+}
+
+.dark-mode .ast-position {
+  color: #9ca3af;
+}
+
+.dark-mode .ast-text-value {
+  color: #ef4444;
 }
 
 .dark-mode .ast-fields {
