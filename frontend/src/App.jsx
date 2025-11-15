@@ -4,6 +4,10 @@ import './App.css'
 import ChatMessage from './components/ChatMessage'
 import InputArea from './components/InputArea'
 import Header from './components/Header'
+import ModeSelector from './components/ModeSelector'
+import CodeDisplay from './components/CodeDisplay'
+import EvaluationPanel from './components/EvaluationPanel'
+import ASTViewer from './components/ASTViewer'
 
 function App() {
   const [conversations, setConversations] = useState([])
@@ -13,6 +17,14 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
+  const [chatMode, setChatMode] = useState('general')
+  const [showEvaluationPanel, setShowEvaluationPanel] = useState(false)
+  const [referenceCode, setReferenceCode] = useState('')
+  const [evaluationResult, setEvaluationResult] = useState(null)
+  const [isEvaluating, setIsEvaluating] = useState(false)
+  const [showAST, setShowAST] = useState(false)
+  const [currentAST, setCurrentAST] = useState(null)
+  const [currentCodeForEval, setCurrentCodeForEval] = useState({ code: '', language: '' })
   const messagesEndRef = useRef(null)
 
   // Load conversations from localStorage on mount
@@ -66,7 +78,6 @@ function App() {
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
 
-    // Create a new conversation if none exists
     if (!currentConversationId) {
       const newConv = {
         id: Date.now().toString(),
@@ -82,12 +93,12 @@ function App() {
     const userMessage = {
       role: 'user',
       content: input,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      mode: chatMode
     }
 
     setMessages(prev => [...prev, userMessage])
     
-    // Update conversation title if it's the first message
     if (messages.length === 0 && currentConversationId) {
       setConversations(prev => prev.map(conv =>
         conv.id === currentConversationId
@@ -100,13 +111,18 @@ function App() {
     setIsLoading(true)
 
     try {
-      // Build conversation history for API
-      const history = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
+      const history = messages
+        .filter(msg => msg.mode === chatMode)
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
 
-      const response = await axios.post('http://localhost:5001/api/chat', {
+      const endpoint = chatMode === 'code' 
+        ? 'http://localhost:5001/api/chat/code'
+        : 'http://localhost:5001/api/chat'
+
+      const response = await axios.post(endpoint, {
         message: input,
         history: history
       })
@@ -114,7 +130,12 @@ function App() {
       const assistantMessage = {
         role: 'assistant',
         content: response.data.response,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mode: chatMode,
+        isCode: chatMode === 'code',
+        language: response.data.language,
+        fileExtension: response.data.file_extension,
+        ast: response.data.ast
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -124,12 +145,60 @@ function App() {
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date().toISOString(),
-        isError: true
+        isError: true,
+        mode: chatMode
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const downloadCode = (code, filename) => {
+    const blob = new Blob([code], { type: 'text/plain' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+
+  const handleEvaluate = (code, language) => {
+    setCurrentCodeForEval({ code, language })
+    setShowEvaluationPanel(true)
+    setEvaluationResult(null)
+  }
+
+  const calculateCodeBLEU = async (code, language) => {
+    if (!referenceCode.trim()) {
+      alert('Please provide reference code first!')
+      return
+    }
+
+    setIsEvaluating(true)
+
+    try {
+      const response = await axios.post('http://localhost:5001/api/evaluate/codebleu', {
+        generated_code: code,
+        reference_code: referenceCode,
+        language: language || 'python'
+      })
+
+      setEvaluationResult(response.data)
+    } catch (error) {
+      console.error('Error evaluating code:', error)
+      alert('Failed to evaluate code. Error: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setIsEvaluating(false)
+    }
+  }
+
+  const handleShowAST = (astData) => {
+    setCurrentAST(astData)
+    setShowAST(true)
   }
 
   const handleKeyPress = (e) => {
@@ -229,47 +298,112 @@ function App() {
           showSidebar={showSidebar}
         />
         
+        <ModeSelector mode={chatMode} setMode={setChatMode} />
+
         <div className="chat-container">
           {messages.length === 0 ? (
             <div className="welcome-screen">
-              <div className="welcome-icon">💬</div>
-              <h1 className="welcome-title">How can I help you today?</h1>
-              <p className="welcome-subtitle">I'm Apex, your AI assistant. I can help you with analysis, research, writing, coding, and more.</p>
+              <div className="welcome-icon">{chatMode === 'code' ? '�' : '�💬'}</div>
+              <h1 className="welcome-title">
+                {chatMode === 'code' ? 'Code Generation Mode' : 'How can I help you today?'}
+              </h1>
+              <p className="welcome-subtitle">
+                {chatMode === 'code' 
+                  ? "I will generate pure code based on your request. Describe what code you need."
+                  : "I'm Apex, your AI assistant. I can help you with analysis, research, writing, coding, and more."}
+              </p>
               <div className="suggestion-cards">
-                <button 
-                  className="suggestion-card"
-                  onClick={() => setInput("Explain quantum computing in simple terms")}
-                >
-                  <span className="suggestion-icon">💡</span>
-                  <span>Explain quantum computing in simple terms</span>
-                </button>
-                <button 
-                  className="suggestion-card"
-                  onClick={() => setInput("Help me write a Python function to sort a list")}
-                >
-                  <span className="suggestion-icon">💻</span>
-                  <span>Help me write a Python function to sort a list</span>
-                </button>
-                <button 
-                  className="suggestion-card"
-                  onClick={() => setInput("Give me tips for better writing")}
-                >
-                  <span className="suggestion-icon">✏️</span>
-                  <span>Give me tips for better writing</span>
-                </button>
-                <button 
-                  className="suggestion-card"
-                  onClick={() => setInput("Analyze the pros and cons of remote work")}
-                >
-                  <span className="suggestion-icon">📊</span>
-                  <span>Analyze the pros and cons of remote work</span>
-                </button>
+                {chatMode === 'code' ? (
+                  <>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Python function to calculate fibonacci numbers")}
+                    >
+                      <span className="suggestion-icon">🐍</span>
+                      <span>Python function to calculate fibonacci numbers</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Java class for a simple calculator")}
+                    >
+                      <span className="suggestion-icon">☕</span>
+                      <span>Java class for a simple calculator</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("JavaScript function to validate email")}
+                    >
+                      <span className="suggestion-icon">📧</span>
+                      <span>JavaScript function to validate email</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("C++ function to implement binary search")}
+                    >
+                      <span className="suggestion-icon">🔍</span>
+                      <span>C++ function to implement binary search</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Explain quantum computing in simple terms")}
+                    >
+                      <span className="suggestion-icon">💡</span>
+                      <span>Explain quantum computing in simple terms</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Help me write a Python function to sort a list")}
+                    >
+                      <span className="suggestion-icon">💻</span>
+                      <span>Help me write a Python function to sort a list</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Give me tips for better writing")}
+                    >
+                      <span className="suggestion-icon">✏️</span>
+                      <span>Give me tips for better writing</span>
+                    </button>
+                    <button 
+                      className="suggestion-card"
+                      onClick={() => setInput("Analyze the pros and cons of remote work")}
+                    >
+                      <span className="suggestion-icon">📊</span>
+                      <span>Analyze the pros and cons of remote work</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
             <div className="messages-container">
               {messages.map((message, index) => (
-                <ChatMessage key={index} message={message} />
+                message.isCode ? (
+                  <div key={index} className="message-wrapper">
+                    <div className="message-meta">
+                      <span className="message-role">Apex</span>
+                      <span className="message-time">
+                        {new Date(message.timestamp).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
+                    <CodeDisplay 
+                      code={message.content}
+                      language={message.language}
+                      fileExtension={message.fileExtension}
+                      onDownload={downloadCode}
+                      onEvaluate={handleEvaluate}
+                      onShowAST={() => handleShowAST(message.ast)}
+                    />
+                  </div>
+                ) : (
+                  <ChatMessage key={index} message={message} />
+                )
               ))}
               {isLoading && (
                 <div className="typing-indicator">
@@ -284,6 +418,29 @@ function App() {
             </div>
           )}
         </div>
+
+        {showEvaluationPanel && (
+          <EvaluationPanel 
+            referenceCode={referenceCode}
+            setReferenceCode={setReferenceCode}
+            evaluationResult={evaluationResult}
+            isEvaluating={isEvaluating}
+            onClose={() => {
+              setShowEvaluationPanel(false)
+              setEvaluationResult(null)
+            }}
+            onCalculate={calculateCodeBLEU}
+            generatedCode={currentCodeForEval.code}
+            language={currentCodeForEval.language}
+          />
+        )}
+
+        {showAST && currentAST && (
+          <ASTViewer 
+            astData={currentAST}
+            onClose={() => setShowAST(false)}
+          />
+        )}
 
         <InputArea
           input={input}
