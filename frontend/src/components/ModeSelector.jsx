@@ -8,7 +8,7 @@ function ModeSelector({ mode, setMode }) {
         onChange={(e) => setMode(e.target.value)}
         className="mode-dropdown"
       >
-        <option value="general">💬 General Chat</option>
+        <option value="general">💬 General Chat Mode</option>
         <option value="code">💻 Code Mode</option>
       </select>
     </div>
